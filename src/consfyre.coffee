@@ -11,6 +11,8 @@ $fg = undefined
 
 world = undefined
 
+keys = {}
+
 # random number from a to b
 r = (a, b) -> Math.random()*(b-a) + a
 
@@ -59,16 +61,21 @@ createBox = (world, x, y, width, height, fixed) ->
   boxSd.restitution = 0.6
   boxSd.friction = .3
   boxSd.density = 1.0  unless fixed
+
   boxSd.extents.Set width, height
   boxBd = new b2BodyDef()
   boxBd.AddShape boxSd
   boxBd.position.Set x, y
-  world.CreateBody boxBd
+  body = world.CreateBody boxBd
 
+  # add a little friction to space
+  body.m_linearDamping = 0.99
+  body.m_angularDamping = 0.99
+
+  return body
 
 box = undefined
-force_x = null
-force_y = null
+
 
 draw = ->
   # get canvas
@@ -92,7 +99,6 @@ draw = ->
     ctx.save()
     ctx.translate(body.m_position.x, body.m_position.y)
     ctx.rotate(body.m_rotation)
-    console.log body
     if body.m_shapeList
       sh = body.m_shapeList
       verts = sh.m_coreVertices
@@ -128,18 +134,42 @@ draw = ->
 
     ctx.restore()
 
-
-
     body = body.m_next
 
-  if force_x != null
-    #console.log "up", box
-    box.ApplyImpulse(force_x, box.m_position)
-  if force_y != null
-    #console.log "up", box
-    box.ApplyImpulse(force_y, box.m_position)
 
-  box.WakeUp()
+  # apply impulse
+  force = (x, y, fx,fy) ->
+    box.WakeUp()
+
+    v = new b2Vec2(x,y)
+    v.MulM(box.sMat0)
+    v.Add(box.m_position)
+
+    f = new b2Vec2(fx,fy)
+    f.MulM(box.sMat0)
+
+    box.ApplyImpulse(f, v)
+
+    fire = new b2Vec2(-fx,-fy/100)
+    fire.MulM(box.sMat0)
+
+    ctx.beginPath()
+    ctx.moveTo(v.x, v.y)
+    ctx.lineTo(v.x+fire.x, v.y+fire.y)
+    ctx.closePath()
+    ctx.strokeStyle = "red"
+    ctx.stroke()
+
+
+  # engine contolr
+  if keys[38]
+    force(0,-20, 0, 10000)
+  if keys[37]
+    force(-20,-20, 0, 10000)
+  if keys[39]
+    force(20,-20, 0, 10000)
+  if keys[40]
+    force(0,20, 0, -5000)
 
   world.Step(1/60, 1);
   #console.log "step"
@@ -152,22 +182,11 @@ draw = ->
 
 
 $doc.keydown (e) ->
-  f = 10000
-  #console.log e.which
-  if e.which == 38
-    force_y = new b2Vec2(0,-f)
-  if e.which == 39
-    force_x = new b2Vec2(f, 0)
-  if e.which == 37
-    force_x = new b2Vec2(-f,0)
-  if e.which == 40
-    force_y = new b2Vec2(0,f)
+  #console.log e.which, keys
+  keys[e.which] = true
 
 $doc.keyup (e) ->
-   if e.which in [38,40]
-     force_y = null
-   if e.which in [37,39]
-     force_x = null
+  keys[e.which] = false
 
 
 # init function
@@ -178,14 +197,15 @@ $ ->
 
   box = createBox(world, 50, 20, 23, 23, false)
 
-  for i in [0...100]
-    x = r(-1000,1000)
-    y = r(-1000,1000)
+  for i in [0...1000]
+    z = 3000
+    x = r(-z,z)
+    y = r(-z,z)
     xs = r(10,100)
     ys = r(10,100)
-    createBox world, x, y, xs, ys
+    createBox world, x, y, xs, ys, false
 
-  console.log "world", world
+  console.log "world", world, "box", box
 
 
 
