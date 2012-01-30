@@ -74,6 +74,30 @@ createBox = (world, x, y, width, height, fixed) ->
 
   return body
 
+createPoly = (world, x, y) ->
+  polySd1 = new b2PolyDef()
+
+  size = Math.floor(r(30, 100)) #add some randomness to it
+  points = Math.floor(r(3,9))
+  polySd1.vertexCount = points
+
+  for i in [0...points]
+    degree = (360/points)*i
+    distance = r(size*.5, size*1.5)
+    px = distance*Math.cos(Math.PI/180*degree)
+    py = distance*Math.sin(Math.PI/180*degree)
+    polySd1.vertices[i].Set(px, py)
+
+  polySd1.localRotation = 0.3524 * Math.PI
+  R1 = new b2Mat22(polySd1.localRotation)
+  polySd1.localPosition = b2Math.b2MulMV(R1, new b2Vec2(30, 0))
+  polySd1.density = 1.0
+
+  polyBd = new b2BodyDef()
+  polyBd.AddShape(polySd1)
+  polyBd.position.Set(x,y)
+  return world.CreateBody(polyBd)
+
 box = undefined
 
 
@@ -97,7 +121,7 @@ draw = ->
   while body != null
 
     ctx.save()
-    ctx.translate(body.m_position.x, body.m_position.y)
+    ctx.translate(body.m_position0.x, body.m_position0.y)
     ctx.rotate(body.m_rotation)
     if body.m_shapeList
       sh = body.m_shapeList
@@ -163,7 +187,7 @@ draw = ->
 
   # engine contolr
   if keys[38]
-    force(0,-20, 0, 10000)
+    force(0,-20, 0, 100000)
   if keys[37]
     force(-20,-20, 0, 10000)
   if keys[39]
@@ -197,13 +221,15 @@ $ ->
 
   box = createBox(world, 50, 20, 23, 23, false)
 
-  for i in [0...1000]
+  for i in [0...500]
     z = 3000
     x = r(-z,z)
     y = r(-z,z)
     xs = r(10,100)
     ys = r(10,100)
-    createBox world, x, y, xs, ys, false
+    #createBox world, x, y, xs, ys, false
+
+    createPoly world, x, y
 
   console.log "world", world, "box", box
 
