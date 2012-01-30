@@ -74,27 +74,24 @@ createBox = (world, x, y, width, height, fixed) ->
 
   return body
 
-createPoly = (world, x, y) ->
-  polySd1 = new b2PolyDef()
+createPoly = (world, x, y, grid) ->
 
-  size = Math.floor(r(30, 100)) #add some randomness to it
-  points = Math.floor(r(3,9))
-  polySd1.vertexCount = points
+  cube = [[0,0],[1,0],[1,1],[0,1]]
 
-  for i in [0...points]
-    degree = (360/points)*i
-    distance = r(size*.5, size*1.5)
-    px = distance*Math.cos(Math.PI/180*degree)
-    py = distance*Math.sin(Math.PI/180*degree)
-    polySd1.vertices[i].Set(px, py)
 
-  polySd1.localRotation = 0.3524 * Math.PI
-  R1 = new b2Mat22(polySd1.localRotation)
-  polySd1.localPosition = b2Math.b2MulMV(R1, new b2Vec2(30, 0))
-  polySd1.density = 1.0
 
   polyBd = new b2BodyDef()
-  polyBd.AddShape(polySd1)
+  for xrow, px in grid
+    for e, py in xrow
+      if e
+        polySd1 = new b2PolyDef()
+        polySd1.vertexCount = 4
+        for p,i in cube
+          polySd1.vertices[i].Set((p[0]+px)*16, (p[1]+py)*16)
+        polySd1.density = 1.0
+        polyBd.AddShape(polySd1)
+
+
   polyBd.position.Set(x,y)
   return world.CreateBody(polyBd)
 
@@ -123,19 +120,28 @@ draw = ->
     ctx.save()
     ctx.translate(body.m_position0.x, body.m_position0.y)
     ctx.rotate(body.m_rotation)
-    if body.m_shapeList
-      sh = body.m_shapeList
+
+    ctx.lineWidth=3
+    ctx.fillStyle = "#777777"
+
+    if body.IsSleeping()
+      ctx.fillStyle = "#377777"
+    if body.IsFrozen()
+      ctx.fillStyle = "#373777"
+    if body.IsFrozen()
+      ctx.fillStyle = "#373737"
+
+    sh = body.m_shapeList
+
+
+    while sh
+      #console.log sh
+      ctx.save()
+      ctx.translate(sh.m_localCentroid.x, sh.m_localCentroid.y)
+
       verts = sh.m_coreVertices
 
-      ctx.lineWidth=3
-      ctx.fillStyle = "#777777"
 
-      if body.IsSleeping()
-        ctx.fillStyle = "#377777"
-      if body.IsFrozen()
-        ctx.fillStyle = "#373777"
-      if body.IsFrozen()
-        ctx.fillStyle = "#373737"
       ctx.beginPath()
 
       if verts
@@ -143,6 +149,7 @@ draw = ->
         for v in verts[1..]
           if v
             ctx.lineTo(v.x, v.y)
+
       else if sh.m_radius
         ctx.arc(0,0,sh.m_radius,0,Math.PI*2,true)
         ctx.lineTo(0,0)
@@ -152,6 +159,9 @@ draw = ->
       ctx.fill()
       ctx.strokeStyle = "#BBBBBB"
       ctx.stroke()
+
+      ctx.restore()
+      sh = sh.m_next
 
     ctx.fillStyle = "black"
     ctx.fillRect(-5, -5, 10, 10)
@@ -187,11 +197,13 @@ draw = ->
 
   # engine contolr
   if keys[38]
-    force(0,-20, 0, 100000)
+    force(0,-32, 0, 100000)
+
   if keys[37]
-    force(-20,-20, 0, 10000)
+    force(-32,-32, 0, 10000)
   if keys[39]
-    force(20,-20, 0, 10000)
+    force(32,-32, 0, 10000)
+
   if keys[40]
     force(0,20, 0, -5000)
 
@@ -219,17 +231,32 @@ $ ->
 
   world = createWorld()
 
-  box = createBox(world, 50, 20, 23, 23, false)
+  ship = [
+    [1,1,0,0,0]
+    [0,1,1,0,1]
+    [0,1,1,1,1]
+    [0,1,1,0,1]
+    [1,1,0,0,0]
+  ]
 
-  for i in [0...500]
-    z = 3000
+  box = createPoly(world, 0,0, ship)
+
+  for i in [0...50]
+    z = 700
     x = r(-z,z)
     y = r(-z,z)
     xs = r(10,100)
     ys = r(10,100)
     #createBox world, x, y, xs, ys, false
 
-    createPoly world, x, y
+    rock = [
+      [0,1,1,1,0]
+      [1,1,1,1,1]
+      [1,1,0,1,1]
+      [1,1,1,1,1]
+      [0,1,1,1,0]
+    ]
+    createPoly world, x, y, rock
 
   console.log "world", world, "box", box
 
