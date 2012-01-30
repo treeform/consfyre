@@ -13,6 +13,9 @@ world = undefined
 
 keys = {}
 
+ships = new Image()
+ships.src = "/data/ships2.png"
+
 # random number from a to b
 r = (a, b) -> Math.random()*(b-a) + a
 
@@ -76,18 +79,21 @@ createBox = (world, x, y, width, height, fixed) ->
 
 createPoly = (world, x, y, grid) ->
 
-  cube = [[0,0],[1,0],[1,1],[0,1]]
+  a = .9
+  cube = [[0,0],[a,0],[a,a],[0,a]]
 
 
 
   polyBd = new b2BodyDef()
-  for xrow, px in grid
-    for e, py in xrow
+  for xrow, py in grid
+    for e, px in xrow
       if e
         polySd1 = new b2PolyDef()
         polySd1.vertexCount = 4
+        polySd1.userData = e
         for p,i in cube
           polySd1.vertices[i].Set((p[0]+px)*16, (p[1]+py)*16)
+
         polySd1.density = 1.0
         polyBd.AddShape(polySd1)
 
@@ -142,6 +148,8 @@ draw = ->
       verts = sh.m_coreVertices
 
 
+      ###
+
       ctx.beginPath()
 
       if verts
@@ -159,12 +167,17 @@ draw = ->
       ctx.fill()
       ctx.strokeStyle = "#BBBBBB"
       ctx.stroke()
+      ###
+      #console.log sh
+      #blah()
+      ctx.drawImage(ships, (sh.m_userData-1)*16, 0, 16,16,  -8,-8, 16,16)
+
 
       ctx.restore()
       sh = sh.m_next
 
-    ctx.fillStyle = "black"
-    ctx.fillRect(-5, -5, 10, 10)
+    #ctx.fillStyle = "black"
+    #ctx.fillRect(-5, -5, 10, 10)
 
     ctx.restore()
 
@@ -232,29 +245,28 @@ $ ->
   world = createWorld()
 
   ship = [
-    [1,1,0,0,0]
-    [0,1,1,0,1]
-    [0,1,1,1,1]
-    [0,1,1,0,1]
-    [1,1,0,0,0]
+    [3,0,0,0,3]
+    [1,1,2,1,1]
+    [0,1,2,1,0]
+    [0,0,2,0,0]
+    [0,1,1,1,0]
   ]
 
   box = createPoly(world, 0,0, ship)
 
   for i in [0...50]
-    z = 700
+    z = 1000
     x = r(-z,z)
     y = r(-z,z)
     xs = r(10,100)
     ys = r(10,100)
-    #createBox world, x, y, xs, ys, false
 
     rock = [
       [0,1,1,1,0]
       [1,1,1,1,1]
       [1,1,0,1,1]
       [1,1,1,1,1]
-      [0,1,1,1,0]
+      [0,1,0,1,0]
     ]
     createPoly world, x, y, rock
 
