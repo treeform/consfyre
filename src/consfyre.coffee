@@ -31,7 +31,16 @@ $doc.keyup (e) ->
 
 # loader
 ships = new Image()
-ships.src = "/data/ships2.png"
+ships.src = "./data/ships2.png"
+
+fire1 = new Audio()
+fire1.src = './data/fire1.wav'
+
+thruster1 = new Audio()
+thruster1.src = './data/thruster1.wav'
+
+intro = new Audio()
+intro.src = './data/hallow-drone-by-dj-chronos.ogg'
 
 # random number from a to b
 r = (a, b) -> Math.random()*(b-a) + a
@@ -206,6 +215,9 @@ draw = ->
   ctx.font = "8px EarthMomma"
   ctx.fillText("Construct, Conspire, Crossfire", 32, 32+12);
 
+
+  fire1._played = false
+
   # done request next frame
   requestFrame(draw)
 
@@ -254,6 +266,7 @@ class Engine extends Module
   # which key controls this engine
   key: null
   constructor: (@direction, @key) ->
+    @off = true
     return
 
   force: (body, x, y, fx,fy) ->
@@ -287,6 +300,14 @@ class Engine extends Module
       at_y = shape.m_localCentroid.y
       @force(body, at_x, at_y, vec.x, vec.y)
 
+      if @off
+        t = thruster1.cloneNode(true)
+        t.volume = .1
+        t.play()
+        @off = false
+    else
+      @off = true
+
 # Shoot projectiles based on key press
 # can face 4 directions
 class Gun extends Module
@@ -319,10 +340,18 @@ class Gun extends Module
       f.MulM(box.sMat0)
       # apply for to bullet
       bullet.ApplyImpulse(f, p)
-
+      # play sound
+      if not fire1._played
+        f = fire1.cloneNode(true)
+        f.volume = .3
+        f.play()
+        fire1._played = true
 
 # init function
 $ ->
+
+  intro.play()
+
   $fg = $('#fg')
 
   world = createWorld()
