@@ -1,3 +1,4 @@
-*     {margin: 0px; padding: 0px}
-body  {background: black}
-#fg   {positon:fixed}
+@font-face {font-family: EarthMomma; src: url(./EarthMomma.ttf); font-weight:400;}
+*          {margin: 0px; padding: 0px}
+body       {background: black; font-family: EarthMomma, Helvetica, Arial, sans-serif;}
+#fg        {positon:fixed}

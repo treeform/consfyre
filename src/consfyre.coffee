@@ -122,6 +122,7 @@ draw = ->
   # get context
   ctx = fg_canvas.getContext('2d')
 
+
   ctx.save()
   camera_x = -box.m_position.x+width/2
   camera_y = -box.m_position.y+height/2
@@ -197,6 +198,14 @@ draw = ->
 
   world.Step(1/60, 1);
   ctx.restore()
+
+  ctx.font = "16px EarthMomma"
+  ctx.fillStyle = "#FFF"
+  ctx.fillText("Consfyre .01a", 32, 32)
+  ctx.fillStyle = "#AAA"
+  ctx.font = "8px EarthMomma"
+  ctx.fillText("Construct, Conspire, Crossfire", 32, 32+12);
+
   # done request next frame
   requestFrame(draw)
 
