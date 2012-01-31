@@ -162,7 +162,17 @@ draw = ->
         tx = module.tile[0]*16
         ty = module.tile[1]*16
         # draw image
-        ctx.drawImage(ships, tx,ty, 16,16,  -8,-8, 16,16)
+        if module.direction == S
+          # nothing
+        else if module.direction == N
+          ctx.rotate(180/180*Math.PI)
+        else if module.direction == E
+          ctx.rotate(-90/180*Math.PI)
+        else if module.direction == W
+          ctx.rotate(90/180*Math.PI)
+
+        ctx.drawImage(ships, tx,ty, 16, 16,  -8,-8, 16,16)
+
         # restore the ctx
         ctx.restore()
 
@@ -200,7 +210,7 @@ dir = (d, mag) ->
     new b2Vec2(0, -mag)
   else if d == E
     new b2Vec2(mag, 0)
-  else if d == S
+  else if d == W
     new b2Vec2(-mag, 0)
   else
     throw "invalid direction #{d}"
@@ -250,7 +260,7 @@ class Engine extends Module
     body.ApplyImpulse(f, v)
 
     # draw the debug force vectors
-    fire = new b2Vec2(-fx,-fy/100)
+    fire = new b2Vec2(-fx/100,-fy/100)
     fire.MulM(box.sMat0)
     ctx.beginPath()
     ctx.arc(v.x, v.y,5,0,Math.PI*2,true)
@@ -317,7 +327,7 @@ $ ->
 
   # ship definition
   ship = [
-    [E(N, 39), 0,       E(N,38), 0,       E(N,37)]
+    [E(W, 39), 0,       E(N,38), 0,       E(E,37)]
     [H(),      H(),     C(),     H(),     H()]
     [0,        H(),     C(),     H(),     0]
     [0,        0,       C(),     0,       0]
