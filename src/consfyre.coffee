@@ -58,48 +58,38 @@ createBall = (world, x, y, s) ->
   ballBd.position.Set x, y
   world.CreateBody ballBd
 
-createBox = (world, x, y, width, height, fixed) ->
-  fixed = true  if typeof (fixed) is "undefined"
-  boxSd = new b2BoxDef()
-  boxSd.restitution = 0.6
-  boxSd.friction = .3
-  boxSd.density = 1.0  unless fixed
+# creates a physical object from tile grid
+# TODO: optimize the number of sub rectangles created
+#
 
-  boxSd.extents.Set width, height
-  boxBd = new b2BodyDef()
-  boxBd.AddShape boxSd
-  boxBd.position.Set x, y
-  body = world.CreateBody boxBd
-
-  # add a little friction to space
-  body.m_linearDamping = 0.99
-  body.m_angularDamping = 0.99
-
-  return body
-
-createPoly = (world, x, y, grid) ->
-
-  a = .9
-  cube = [[0,0],[a,0],[a,a],[0,a]]
-
-
-
+createGrid = (world, x, y, grid) ->
+  # cube defintion, 0,0 to 1,1
+  cube = [[0,0],[1,0],[1,1],[0,1]]
+  # create compisle poly body
   polyBd = new b2BodyDef()
+  # for each row tile grid
   for xrow, py in grid
     for e, px in xrow
       if e
+        # if tile is defined
+        # make a square at that location
         polySd1 = new b2PolyDef()
         polySd1.vertexCount = 4
+        # user data is the tile we used
         polySd1.userData = e
         for p,i in cube
           polySd1.vertices[i].Set((p[0]+px)*16, (p[1]+py)*16)
-
+        # set dencity of the tile
         polySd1.density = 1.0
+        # add the tile to the composite shape
         polyBd.AddShape(polySd1)
-
-
+  # set body position
   polyBd.position.Set(x,y)
-  return world.CreateBody(polyBd)
+  body = world.CreateBody(polyBd)
+  # add a little friction to space
+  body.m_linearDamping = 0.99
+  body.m_angularDamping = 0.99
+  return body
 
 box = undefined
 
@@ -139,48 +129,27 @@ draw = ->
 
     sh = body.m_shapeList
 
-
-    while sh
-      #console.log sh
-      ctx.save()
-      ctx.translate(sh.m_localCentroid.x, sh.m_localCentroid.y)
-
-      verts = sh.m_coreVertices
-
-
-      ###
-
-      ctx.beginPath()
-
-      if verts
-        ctx.moveTo(verts[0].x, verts[0].y)
-        for v in verts[1..]
-          if v
-            ctx.lineTo(v.x, v.y)
-
-      else if sh.m_radius
+    if sh and sh.m_radius
+        ctx.beginPath()
         ctx.arc(0,0,sh.m_radius,0,Math.PI*2,true)
         ctx.lineTo(0,0)
-
-      ctx.closePath()
-
-      ctx.fill()
-      ctx.strokeStyle = "#BBBBBB"
-      ctx.stroke()
-      ###
-      #console.log sh
-      #blah()
-      ctx.drawImage(ships, (sh.m_userData-1)*16, 0, 16,16,  -8,-8, 16,16)
-
-
-      ctx.restore()
-      sh = sh.m_next
-
-    #ctx.fillStyle = "black"
-    #ctx.fillRect(-5, -5, 10, 10)
+        ctx.closePath()
+        ctx.fill()
+        ctx.strokeStyle = "#BBBBBB"
+        ctx.stroke()
+    else
+      # draw a grid of tiles
+      # keep drawing the tiles till we run out
+      while sh
+        ctx.save()
+        # tiles have location position
+        ctx.translate(sh.m_localCentroid.x, sh.m_localCentroid.y)
+        verts = sh.m_coreVertices
+        ctx.drawImage(ships, (sh.m_userData-1)*16, 0, 16,16,  -8,-8, 16,16)
+        ctx.restore()
+        sh = sh.m_next
 
     ctx.restore()
-
     body = body.m_next
 
 
@@ -210,15 +179,26 @@ draw = ->
 
   # engine contolr
   if keys[38]
-    force(0,-32, 0, 100000)
+    force(0,-32, 0, 10000)
 
   if keys[37]
-    force(-32,-32, 0, 10000)
+    force(-32,-32, 0, 8000)
   if keys[39]
-    force(32,-32, 0, 10000)
+    force(32,-32, 0, 8000)
 
   if keys[40]
     force(0,20, 0, -5000)
+
+  if keys[32]
+    # fire
+    p = new b2Vec2(0, 60)
+    p.MulM(box.sMat0)
+    p.Add(box.m_position)
+    ball = createBall(world, p.x, p.y, 10)
+    f = new b2Vec2(0, 1000000)
+    f.MulM(box.sMat0)
+    ball.ApplyImpulse(f, p)
+    console.log ball
 
   world.Step(1/60, 1);
   #console.log "step"
@@ -231,7 +211,7 @@ draw = ->
 
 
 $doc.keydown (e) ->
-  #console.log e.which, keys
+  console.log e.which, keys
   keys[e.which] = true
 
 $doc.keyup (e) ->
@@ -252,7 +232,7 @@ $ ->
     [0,1,1,1,0]
   ]
 
-  box = createPoly(world, 0,0, ship)
+  box = createGrid(world, 0,0, ship)
 
   for i in [0...50]
     z = 1000
@@ -268,7 +248,7 @@ $ ->
       [1,1,1,1,1]
       [0,1,0,1,0]
     ]
-    createPoly world, x, y, rock
+    createGrid world, x, y, rock
 
   console.log "world", world, "box", box
 
