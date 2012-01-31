@@ -56,7 +56,7 @@ resize = ->
 # creates a world
 createWorld = ->
   worldAABB = new b2AABB()
-  s = 20000
+  s = 2000
   worldAABB.minVertex.Set -s, -s
   worldAABB.maxVertex.Set s, s
   # no gravity this is space!
@@ -326,8 +326,8 @@ $ ->
 
   box = createGrid(world, 0,0, ship)
 
-  for i in [0...50]
-    z = 1000
+  for i in [0...20]
+    z = 400
     x = r(-z,z)
     y = r(-z,z)
     xs = r(10,100)
