@@ -75,12 +75,12 @@ createWorld = ->
   return world
 
 # creates a frictionless ball
-createBall = (world, x, y, s) ->
+createBall = (world, x, y, s, d) ->
   ballSd = new b2CircleDef()
   #console.log "body def", ballSd
   # does not seem to have bullet property
   #ballSd.bullet = true
-  ballSd.density = 1.0
+  ballSd.density = d
   ballSd.radius = s
   ballSd.restitution = 0.6
   ballSd.friction = 0.4
@@ -91,55 +91,65 @@ createBall = (world, x, y, s) ->
 
 # creates a physical object from tile grid
 # TODO: optimize the number of sub rectangles created
-createGrid = (world, x, y, grid) ->
+createGrid = (world, ship) ->
   # cube defintion, 0,0 to 1,1
   cube = [[0,0],[1,0],[1,1],[0,1]]
   # create compisle poly body
   polyBd = new b2BodyDef()
+
+  polyBd.userData = ship
+
   # for each row tile grid
-  for xrow, py in grid
+  for xrow, py in ship.grid
+    start_px = null
     for e, px in xrow
-      if e
+
+      make = (end_px) ->
+        #console.log "end", end_px, py
         # if tile is defined
         # make a square at that location
         polySd1 = new b2PolyDef()
         polySd1.vertexCount = 4
         # user data is the tile we used
-        polySd1.userData = e
-        for p,i in cube
-          polySd1.vertices[i].Set((p[0]+px)*16, (p[1]+py)*16)
+        polySd1.userData = [start_px, py, end_px]
+
+        polySd1.vertices[0].Set((start_px)*16, (py)*16)
+        polySd1.vertices[1].Set((end_px)*16, (py)*16)
+        polySd1.vertices[2].Set((end_px)*16, (py+1)*16)
+        polySd1.vertices[3].Set((start_px)*16, (py+1)*16)
+
         # set dencity of the tile
         polySd1.density = 1.0
         # add the tile to the composite shape
         polyBd.AddShape(polySd1)
+
+        start_px = null
+
+
+      if e and start_px == null
+        #console.log "start", px, py
+        start_px = px
+
+      if not e and start_px != null
+        make(px)
+    if start_px != null
+      make(px)
+
   # set body position
-  polyBd.position.Set(x,y)
+  polyBd.position.Set(ship.x, ship.y)
   body = world.CreateBody(polyBd)
   # add a little friction to space
   body.m_linearDamping = 0.99
   body.m_angularDamping = 0.99
+
+  #console.log "made", body.m_userData
+  ship.body = body
   return body
 
 box = undefined
 
 
-draw = ->
-  # get canvas
-  fg_canvas = $fg[0]
-  # fast clear
-  resize()
-  # get context
-  ctx = fg_canvas.getContext('2d')
-
-
-  ctx.save()
-  camera_x = -box.m_position.x+width/2
-  camera_y = -box.m_position.y+height/2
-  ctx.translate(camera_x, camera_y)
-
-  # follow linked list of bodies
-  body = world.m_bodyList
-  while body != null
+draw_thing = (body, thing) ->
 
     # save and tranlsate body into local cordiates
     ctx.save()
@@ -163,45 +173,87 @@ draw = ->
       # draw a grid of tiles
       # keep drawing the tiles till we run out
       while sh
-        # get module at this tile
-        module = sh.m_userData
+
+        # get module slice at this shape
+        [start_x, at_y, end_x] = sh.m_userData
+
+        for at_x in [start_x...end_x]
+          #console.log at_y, at_x
+          module = thing.grid[at_y][at_x]
+
+          # compute plate cordiantes
+          tx = module.tile[0]*16
+          ty = module.tile[1]*16
+
+          # save tile's position
+          m_x = (at_x - (start_x+end_x-1)/2)*16
+          module.x = m_x + sh.m_localCentroid.x
+          module.y = + sh.m_localCentroid.y
+          ctx.save()
+          ctx.translate(module.x, module.y)
+
+          # draw image
+          if module.direction == S
+            # nothing
+          else if module.direction == N
+            ctx.rotate(180/180*Math.PI)
+          else if module.direction == E
+            ctx.rotate(-90/180*Math.PI)
+          else if module.direction == W
+            ctx.rotate(90/180*Math.PI)
+
+          #console.log "at", module.x, module.y
+          ctx.drawImage(ships, tx,ty, 16, 16, -8, -8, 16,16)
+          ctx.restore()
+
+        ###
         ctx.save()
-        # tiles have location position
         ctx.translate(sh.m_localCentroid.x, sh.m_localCentroid.y)
-        # compute plate cordiantes
-        tx = module.tile[0]*16
-        ty = module.tile[1]*16
-        # draw image
-        if module.direction == S
-          # nothing
-        else if module.direction == N
-          ctx.rotate(180/180*Math.PI)
-        else if module.direction == E
-          ctx.rotate(-90/180*Math.PI)
-        else if module.direction == W
-          ctx.rotate(90/180*Math.PI)
-
-        ctx.drawImage(ships, tx,ty, 16, 16,  -8,-8, 16,16)
-
-        # restore the ctx
+        ctx.beginPath()
+        verts = sh.m_coreVertices
+        ctx.moveTo(verts[0].x, verts[0].y)
+        for v in verts[1..]
+          if v
+            ctx.lineTo(v.x, v.y)
+        ctx.strokeStyle = "#F00"
+        ctx.closePath()
+        ctx.stroke()
         ctx.restore()
+        ###
 
         # follow onto next sub object
         sh = sh.m_next
 
     ctx.restore()
 
-    # simulate all modules
-    sh = body.m_shapeList
-    while sh
-      # get module at this tile
-      module = sh.m_userData
-      if module
-        # if there is a module simulate it
-        module.sim(body,sh)
-      # next shape to look at
-      sh = sh.m_next
+    thing.sim()
 
+
+draw = ->
+  # get canvas
+  fg_canvas = $fg[0]
+  # fast clear
+  resize()
+  # get context
+  ctx = fg_canvas.getContext('2d')
+
+
+  ctx.save()
+  camera_x = -box.m_position.x+width/2
+  camera_y = -box.m_position.y+height/2
+  ctx.translate(camera_x, camera_y)
+
+  ctx.strokeStyle = "#040"
+  for x in [-2...2]
+    for y in [-2...2]
+      ctx.strokeRect(x*500, y*500, 500-5, 500-5)
+
+  # follow linked list of bodies
+  body = world.m_bodyList
+  while body != null
+    thing = body.m_userData
+    if thing
+      draw_thing(body, thing)
     # follow onto next object
     body = body.m_next
 
@@ -235,6 +287,26 @@ dir = (d, mag) ->
     new b2Vec2(-mag, 0)
   else
     throw "invalid direction #{d}"
+
+
+class Thing
+  constructor: (@x, @y, @grid) ->
+    console.log "made thing"
+
+  sim: ->
+    # simulate all modules
+    for row, py in @grid
+      for module, px in row
+        if module
+          # if there is a module simulate it
+          module.sim(@body)
+
+
+class Projectile
+  energy = 10
+
+  sim: ->
+    "nothing"
 
 # base moudle, all modules derive from this
 class Module
@@ -292,13 +364,13 @@ class Engine extends Module
     ctx.strokeStyle = "red"
     ctx.stroke()
 
-  sim: (body, shape) ->
+  sim: (body) ->
     if keys[@key]
       # my key is activated
       vec = dir(@direction, -10000)
-      at_x = shape.m_localCentroid.x
-      at_y = shape.m_localCentroid.y
-      @force(body, at_x, at_y, vec.x, vec.y)
+      #at_x = shape.m_localCentroid.x
+      #at_y = shape.m_localCentroid.y
+      @force(body, @x, @y, vec.x, vec.y)
 
       if @off
         t = thruster1.cloneNode(true)
@@ -308,6 +380,8 @@ class Engine extends Module
     else
       @off = true
 
+
+
 # Shoot projectiles based on key press
 # can face 4 directions
 class Gun extends Module
@@ -316,14 +390,12 @@ class Gun extends Module
   constructor: (@direction, @key) ->
     return
 
-  sim: (body, shape) ->
+  sim: (body) ->
     if keys[@key]
       # my key is activated - fire
       vec = dir(@direction, -10000)
       # find current tile location
-      at_x = shape.m_localCentroid.x
-      at_y = shape.m_localCentroid.y
-      p = new b2Vec2(at_x, at_y)
+      p = new b2Vec2(@x, @y)
       # mow up the bullets a little bit
       p.Add(dir(@direction, 32))
       # rotate it based on ship matrix
@@ -331,11 +403,12 @@ class Gun extends Module
       # translate it relative to ship
       p.Add(box.m_position)
       # create the bullet objects
-      bullet = createBall(world, p.x, p.y, 8)
+      bullet = createBall(world, p.x, p.y, 8, .2)
+      bullet.m_userData = new Projectile()
       # make sure bullet expires after 1 second
       setTimeout((-> world.DestroyBody(bullet)), 1000)
       # find the direciton of the tile
-      f = dir(@direction, 600000)
+      f = dir(@direction, 60000)
       # rotate it relative to ship
       f.MulM(box.sMat0)
       # apply for to bullet
@@ -364,7 +437,7 @@ $ ->
   G = (d,k) -> new Gun(d, k)
 
   # ship definition
-  ship = [
+  ship = new Thing 0, 0, [
     [E(W, 39), 0,       E(N,38), 0,       E(E,37)]
     [H(),      H(),     C(),     H(),     H()]
     [0,        H(),     C(),     H(),     0]
@@ -372,23 +445,23 @@ $ ->
     [0,        G(S,32), E(S,40), G(S,32), 0]
   ]
 
-  box = createGrid(world, 0,0, ship)
+  box = createGrid(world, ship)
 
-  for i in [0...20]
-    z = 400
+  for i in [0...100]
+    z = 1000
     x = r(-z,z)
     y = r(-z,z)
     xs = r(10,100)
     ys = r(10,100)
     # rock definition
-    rock = [
+    rock = new Thing x, y, [
       [0,   R(), R(), R(), 0]
       [R(), R(), R(), R(), R()]
-      [R(), R(), 0,   R(), R()]
+      [R(), R(), R(),   R(), R()]
       [R(), R(), R(), R(), R()]
-      [0,   R(), 0,   R(), 0]
+      [0,   R(), R(),   R(), 0]
     ]
-    createGrid world, x, y, rock
+    createGrid world, rock
 
   console.log "world", world, "box", box
 
