@@ -2,6 +2,14 @@
 $win = $(window)
 $doc = $(document)
 
+
+b2Vec2 = Box2D.Common.Math.b2Vec2
+b2BodyDef = Box2D.Dynamics.b2BodyDef
+b2Body = Box2D.Dynamics.b2Body
+b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape
+b2FixtureDef = Box2D.Dynamics.b2FixtureDef
+b2CircleShape = Box2D.Collision.Shapes.b2CircleShape
+
 # our current size
 width = 1000
 height = 600
@@ -64,30 +72,32 @@ resize = ->
 
 # creates a world
 createWorld = ->
-  worldAABB = new b2AABB()
+  worldAABB = new Box2D.Collision.b2AABB()
   s = 2000
-  worldAABB.minVertex.Set -s, -s
-  worldAABB.maxVertex.Set s, s
+  #worldAABB.minVertex.Set -s, -s
+  #worldAABB.maxVertex.Set s, s
   # no gravity this is space!
   gravity = new b2Vec2(0, 0)
   doSleep = true
-  world = new b2World(worldAABB, gravity, doSleep)
+  world = new Box2D.Dynamics.b2World(worldAABB, gravity, doSleep)
   return world
 
 # creates a frictionless ball
 createBall = (world, x, y, s, d) ->
-  ballSd = new b2CircleDef()
-  #console.log "body def", ballSd
-  # does not seem to have bullet property
-  #ballSd.bullet = true
-  ballSd.density = d
-  ballSd.radius = s
-  ballSd.restitution = 0.6
-  ballSd.friction = 0.4
-  ballBd = new b2BodyDef()
-  ballBd.AddShape ballSd
-  ballBd.position.Set x, y
-  world.CreateBody ballBd
+  bodyDef = new b2BodyDef()
+  bodyDef.type = b2Body.b2_dynamicBody;
+  fixDef = new b2FixtureDef()
+  fixDef.density = 1.0;
+  fixDef.friction = 0.5;
+  fixDef.restitution = 0.2;
+  fixDef.shape = new b2CircleShape(s)
+  bodyDef.position.x = x;
+  bodyDef.position.y = y;
+  body = world.CreateBody(bodyDef)
+  body.CreateFixture(fixDef)
+  console.log body
+  return body
+
 
 # creates a physical object from tile grid
 # TODO: optimize the number of sub rectangles created
@@ -96,8 +106,13 @@ createGrid = (world, ship) ->
   cube = [[0,0],[1,0],[1,1],[0,1]]
   # create compisle poly body
   polyBd = new b2BodyDef()
-
   polyBd.userData = ship
+
+  #polyBd.type = b2Body.b2_dynamicBody
+
+  # set body position
+  polyBd.position.Set(ship.x, ship.y)
+  body = world.CreateBody(polyBd)
 
   # for each row tile grid
   for xrow, py in ship.grid
@@ -108,20 +123,24 @@ createGrid = (world, ship) ->
         #console.log "end", end_px, py
         # if tile is defined
         # make a square at that location
-        polySd1 = new b2PolyDef()
-        polySd1.vertexCount = 4
+        fixDef = new b2FixtureDef()
+
+        fixDef.shape = new b2PolygonShape()
         # user data is the tile we used
-        polySd1.userData = [start_px, py, end_px]
+        fixDef.userData = [start_px, py, end_px]
 
-        polySd1.vertices[0].Set((start_px)*16, (py)*16)
-        polySd1.vertices[1].Set((end_px)*16, (py)*16)
-        polySd1.vertices[2].Set((end_px)*16, (py+1)*16)
-        polySd1.vertices[3].Set((start_px)*16, (py+1)*16)
+        points = [
+          new b2Vec2((start_px)*16, (py)*16),
+          new b2Vec2((end_px)*16, (py)*16),
+          new b2Vec2((end_px)*16, (py+1)*16),
+          new b2Vec2((start_px)*16, (py+1)*16)
+        ]
 
+        fixDef.shape.SetAsArray(points, 4)
         # set dencity of the tile
-        polySd1.density = 1.0
+        fixDef.density = 1.0
         # add the tile to the composite shape
-        polyBd.AddShape(polySd1)
+        body.CreateFixture(fixDef)
 
         start_px = null
 
@@ -135,12 +154,11 @@ createGrid = (world, ship) ->
     if start_px != null
       make(px)
 
-  # set body position
-  polyBd.position.Set(ship.x, ship.y)
-  body = world.CreateBody(polyBd)
+
   # add a little friction to space
   body.m_linearDamping = 0.99
   body.m_angularDamping = 0.99
+  body.m_mass = 1
 
   #console.log "made", body.m_userData
   ship.body = body
@@ -153,11 +171,20 @@ draw_thing = (body, thing) ->
 
     # save and tranlsate body into local cordiates
     ctx.save()
-    ctx.translate(body.m_position0.x, body.m_position0.y)
-    ctx.rotate(body.m_rotation)
+    pos = body.GetPosition()
+    ctx.translate(pos.x, pos.y)
+    ctx.rotate(body.GetAngle())
 
+    console.log body
+
+    blah()
+
+
+
+
+    ###
     # follow each shape in a linked list
-    sh = body.m_shapeList
+    sh = body.m_fixtureList
     if sh and sh.m_radius
       # draw a debug circle
       ctx.beginPath()
@@ -175,7 +202,7 @@ draw_thing = (body, thing) ->
       while sh
 
         # get module slice at this shape
-        [start_x, at_y, end_x] = sh.m_userData
+        [start_x, at_y, end_x] = sh.GetUserData()
 
         for at_x in [start_x...end_x]
           #console.log at_y, at_x
@@ -187,8 +214,8 @@ draw_thing = (body, thing) ->
 
           # save tile's position
           m_x = (at_x - (start_x+end_x-1)/2)*16
-          module.x = m_x + sh.m_localCentroid.x
-          module.y = + sh.m_localCentroid.y
+          module.x = m_x + sh.m_shape.m_centroid.x
+          module.y = + sh.m_shape.m_centroid.y
           ctx.save()
           ctx.translate(module.x, module.y)
 
@@ -206,30 +233,20 @@ draw_thing = (body, thing) ->
           ctx.drawImage(ships, tx,ty, 16, 16, -8, -8, 16,16)
           ctx.restore()
 
-        ###
-        ctx.save()
-        ctx.translate(sh.m_localCentroid.x, sh.m_localCentroid.y)
-        ctx.beginPath()
-        verts = sh.m_coreVertices
-        ctx.moveTo(verts[0].x, verts[0].y)
-        for v in verts[1..]
-          if v
-            ctx.lineTo(v.x, v.y)
-        ctx.strokeStyle = "#F00"
-        ctx.closePath()
-        ctx.stroke()
-        ctx.restore()
-        ###
+
 
         # follow onto next sub object
         sh = sh.m_next
-
+    ###
     ctx.restore()
 
     thing.sim()
 
 
 draw = ->
+
+
+
   # get canvas
   fg_canvas = $fg[0]
   # fast clear
@@ -239,23 +256,28 @@ draw = ->
 
 
   ctx.save()
-  camera_x = -box.m_position.x+width/2
-  camera_y = -box.m_position.y+height/2
+  pos = box.GetPosition()
+  camera_x = -pos.x+width/2
+  camera_y = -pos.y+height/2
   ctx.translate(camera_x, camera_y)
+
+  world.DrawDebugData();
+
 
   ctx.strokeStyle = "#040"
   for x in [-2...2]
     for y in [-2...2]
       ctx.strokeRect(x*500, y*500, 500-5, 500-5)
 
+  console.log "list", world.GetBodyList()
   # follow linked list of bodies
-  body = world.m_bodyList
-  while body != null
-    thing = body.m_userData
+  for body in world.GetBodyList()
+    thing = body.GetUserData()
     if thing
       draw_thing(body, thing)
-    # follow onto next object
-    body = body.m_next
+    else
+      console.log body
+      blah()
 
   world.Step(1/60, 1);
   ctx.restore()
@@ -342,20 +364,19 @@ class Engine extends Module
     return
 
   force: (body, x, y, fx,fy) ->
-    body.WakeUp()
+    body.SetAwake(true)
+    console.log body
     # find global tile position
-    v = new b2Vec2(x,y)
-    v.MulM(box.sMat0)
-    v.Add(box.m_position)
+    v = body.GetWorldPoint(new b2Vec2(x,y))
     # rotate force relative to ship
-    f = new b2Vec2(fx,fy)
-    f.MulM(box.sMat0)
+    f = body.GetWorldVector(new b2Vec2(fx*100,fy*100))
     # apply the for to the ship
+    console.log "v:", v.x, v.y, "f", f.x, f.y
     body.ApplyImpulse(f, v)
 
     # draw the debug force vectors
-    fire = new b2Vec2(-fx/100,-fy/100)
-    fire.MulM(box.sMat0)
+    fire = new b2Vec2(-fx / 100,-fy / 100)
+    fire = body.GetWorldVector(new b2Vec2(-fx / 100, -fy / 100))
     ctx.beginPath()
     ctx.arc(v.x, v.y,5,0,Math.PI*2,true)
     ctx.moveTo(v.x, v.y)
@@ -372,11 +393,11 @@ class Engine extends Module
       #at_y = shape.m_localCentroid.y
       @force(body, @x, @y, vec.x, vec.y)
 
-      if @off
-        t = thruster1.cloneNode(true)
-        t.volume = .1
-        t.play()
-        @off = false
+      #if @off
+      #  t = thruster1.cloneNode(true)
+      #  t.volume = .1
+      #  t.play()
+      #  @off = false
     else
       @off = true
 
@@ -393,48 +414,35 @@ class Gun extends Module
   sim: (body) ->
     if keys[@key]
       # my key is activated - fire
-      vec = dir(@direction, -10000)
-      # find current tile location
-      p = new b2Vec2(@x, @y)
-      # mow up the bullets a little bit
-      p.Add(dir(@direction, 32))
-      # rotate it based on ship matrix
-      p.MulM(box.sMat0)
-      # translate it relative to ship
-      p.Add(box.m_position)
+      f = body.GetWorldVector(dir(@direction, -10000))
+      p = body.GetWorldPoint(new b2Vec2(@x,@y))
+
       # create the bullet objects
       bullet = createBall(world, p.x, p.y, 8, .2)
       bullet.m_userData = new Projectile()
+
       # make sure bullet expires after 1 second
       setTimeout((-> world.DestroyBody(bullet)), 1000)
-      # find the direciton of the tile
-      f = dir(@direction, 60000)
-      # rotate it relative to ship
-      f.MulM(box.sMat0)
+
       # apply for to bullet
       bullet.ApplyImpulse(f, p)
-      # play sound
-      if not fire1._played
-        f = fire1.cloneNode(true)
-        f.volume = .3
-        f.play()
-        fire1._played = true
 
 # init function
 $ ->
 
-  intro.play()
+  #intro.play()
 
   $fg = $('#fg')
 
   world = createWorld()
-
+  ###
   # module shortcuts
   R = -> new Rock()
   H = -> new Hull()
   C = -> new Cargo()
   E = (d,k) -> new Engine(d, k)
   G = (d,k) -> new Gun(d, k)
+
 
   # ship definition
   ship = new Thing 0, 0, [
@@ -447,7 +455,7 @@ $ ->
 
   box = createGrid(world, ship)
 
-  for i in [0...100]
+  for i in [0...1]
     z = 1000
     x = r(-z,z)
     y = r(-z,z)
@@ -462,7 +470,35 @@ $ ->
       [0,   R(), R(),   R(), 0]
     ]
     createGrid world, rock
+  ###
+
+
+  fixDef = new b2FixtureDef();
+  fixDef.density = 1.0;
+  fixDef.friction = 0.5;
+  fixDef.restitution = 0.2;
+
+  bodyDef = new b2BodyDef();
+
+  #create some objects
+  bodyDef.type = b2Body.b2_dynamicBody;
+  for i in [0...10]
+    if Math.random() > 0.5
+      fixDef.shape = new b2PolygonShape();
+      fixDef.shape.SetAsBox(
+        Math.random() + 0.1 #half width
+        Math.random() + 0.1 #half height
+      )
+    else
+      fixDef.shape = new b2CircleShape(Math.random() + 0.1) #radius
+
+    bodyDef.position.x = Math.random() * 10;
+    bodyDef.position.y = Math.random() * 10;
+    body = world.CreateBody(bodyDef)
+    body.CreateFixture(fixDef);
+    box = body
 
   console.log "world", world, "box", box
 
-  draw()  
+  draw()
+
